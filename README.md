@@ -1,122 +1,92 @@
-Peer-to-Peer Secure Messaging
+# Peer-to-Peer Secure Messaging
 
 Un système de messagerie P2P chiffrée avec WebSocket et chiffrement asymétrique, incluant un tracker central pour découvrir les pairs et un client web léger.
 
-📦 Architecture
+## 📦 Architecture
 
 Le projet se compose de trois parties principales :
 
-Peer (Node.js)
+**Peer (Node.js)**
+- Établit des connexions WebSocket avec d'autres pairs
+- Utilise un handshake sécurisé avec signatures `Ed25519` et dérivation de clés de session via `X25519`
+- Messages chiffrés avec AES-256-GCM et ratchet de type Double Ratchet
+- Supporte la rotation régulière des clés de session
+- Maintient un buffer pour les messages destinés à des pairs hors-ligne
 
-Établit des connexions WebSocket avec d'autres pairs.
+**Client Web**
+- Interface simple pour envoyer et recevoir des messages
+- Permet les messages publics (broadcast) ou privés à un destinataire spécifique
+- Ping/Pong pour vérifier la connexion
 
-Utilise un handshake sécurisé avec signatures Ed25519 et dérivation de clés de session via X25519.
+**Tracker (Node.js)**
+- Maintient la liste des pairs connectés
+- Distribue les informations sur les autres pairs pour faciliter la découverte P2P
+- Supporte l'enregistrement, la désinscription et la notification des pairs
 
-Messages chiffrés avec AES-256-GCM et ratchet de type Double Ratchet.
+## ⚙️ Installation
 
-Supporte la rotation régulière des clés de session.
+1. **Cloner le dépôt**
+   ```bash
+   git clone <repo-url>
+   cd <repo-folder>
+   ```
 
-Maintient un buffer pour les messages destinés à des pairs hors-ligne.
+2. **Installer les dépendances**
+   ```bash
+   npm install
+   ```
 
-Client Web
+3. **Lancer le tracker**
+   ```bash
+   node tracker.js
+   ```
 
-Interface simple pour envoyer et recevoir des messages.
+4. **Lancer un peer**
+   ```bash
+   node peer.js [PORT]
+   ```
+   Par défaut, `PORT = 9001`. Chaque peer se connecte automatiquement au tracker (`ws://localhost:8080`).
 
-Permet les messages publics (broadcast) ou privés à un destinataire spécifique.
+5. **Accéder au client web**
+   Ouvrir un navigateur sur `http://localhost:<PORT>` du peer.
 
-Ping/Pong pour vérifier la connexion.
+## 🔐 Fonctionnalités de sécurité
 
-Tracker (Node.js)
+**Handshake sécurisé**
+- Authentification via signature `Ed25519`
+- Échange de clés publiques éphémères pour dériver la sessionKey
 
-Maintient la liste des pairs connectés.
+**Chiffrement des messages**
+- AES-256-GCM pour l'intégrité et la confidentialité
+- Nonces pour prévenir les attaques de replay
+- Double Ratchet pour la rotation continue des clés
 
-Distribue les informations sur les autres pairs pour faciliter la découverte P2P.
+**Rotation des clés**
+- Automatique toutes les 5 minutes
+- Synchronisation avec les pairs
 
-Supporte l’enregistrement, la désinscription et la notification des pairs.
+**Buffering**
+- Les messages destinés à des pairs hors-ligne sont conservés et livrés dès que le pair se reconnecte
 
-⚙️ Installation
+## 💬 Utilisation
 
-Cloner le dépôt
+**Envoi de messages via le client web**
+- **Broadcast** : laisser le champ "Nom destinataire" vide
+- **Privé** : renseigner le nom du destinataire
 
-git clone <repo-url>
-cd <repo-folder>
+**Logs et monitoring**
+- Le peer affiche régulièrement l'état du réseau et des pairs connectés
+- Les messages et événements sont loggés avec des emojis pour faciliter la lecture :
+  - ℹ️ Info
+  - ⚠️ Avertissement
+  - 🚨 Erreur
+  - 💬 Message
+  - 🔐 Sécurité
+  - ✅ Succès
 
+## 🌐 Architecture réseau
 
-Installer les dépendances
-
-npm install
-
-
-Lancer le tracker
-
-node tracker.js
-
-
-Lancer un peer
-
-node peer.js [PORT]
-
-
-Par défaut, PORT = 9001.
-
-Chaque peer se connecte automatiquement au tracker (ws://localhost:8080).
-
-Accéder au client web
-
-Ouvrir un navigateur sur http://localhost:<PORT> du peer.
-
-🔐 Fonctionnalités de sécurité
-
-Handshake sécurisé
-
-Authentification via signature Ed25519.
-
-Échange de clés publiques éphémères pour dériver la sessionKey.
-
-Chiffrement des messages
-
-AES-256-GCM pour l’intégrité et la confidentialité.
-
-Nonces pour prévenir les attaques de replay.
-
-Double Ratchet pour la rotation continue des clés.
-
-Rotation des clés
-
-Automatique toutes les 5 minutes.
-
-Synchronisation avec les pairs.
-
-Buffering
-
-Les messages destinés à des pairs hors-ligne sont conservés et livrés dès que le pair se reconnecte.
-
-💬 Utilisation
-Envoi de messages via le client web
-
-Broadcast : laisser le champ "Nom destinataire" vide.
-
-Privé : renseigner le nom du destinataire.
-
-Logs et monitoring
-
-Le peer affiche régulièrement l’état du réseau et des pairs connectés.
-
-Les messages et événements sont loggés avec des emojis pour faciliter la lecture :
-
-ℹ️ Info
-
-⚠️ Avertissement
-
-🚨 Erreur
-
-💬 Message
-
-🔐 Sécurité
-
-✅ Succès
-
-🌐 Architecture réseau
+```
 +-------------+          +-------------+          +-------------+
 | Peer Node 1 | <------> | Peer Node 2 | <------> | Peer Node 3 |
 +-------------+          +-------------+          +-------------+
@@ -124,36 +94,27 @@ Les messages et événements sont loggés avec des emojis pour faciliter la lect
        |                        |
        v                        v
      Tracker -------------------+
+```
 
+- Le tracker agit uniquement comme service de découverte
+- La communication entre pairs est directe et chiffrée
 
-Le tracker agit uniquement comme service de découverte.
+## 📝 Notes
 
-La communication entre pairs est directe et chiffrée.
+- Chaque peer génère un `peerId` unique et un `username` par défaut aléatoire
+- Limitation : le nombre maximal de pairs connectés simultanément est configurable via `MAX_PEERS`
+- Les adresses IPv6 sont correctement supportées grâce à l'encapsulation `[]`
 
-📝 Notes
+## 🔧 Personnalisation
 
-Chaque peer génère un peerId unique et un username par défaut aléatoire.
+- Modifier la fréquence de rotation des clés : `setInterval` dans `peer.js`
+- Ajuster le `PING_INTERVAL` et `PONG_TIMEOUT` dans le client web pour une meilleure tolérance aux délais réseau
 
-Limitation : le nombre maximal de pairs connectés simultanément est configurable via MAX_PEERS.
+## ⚡ Technologies utilisées
 
-Les adresses IPv6 sont correctement supportées grâce à l’encapsulation [].
-
-🔧 Personnalisation
-
-Modifier la fréquence de rotation des clés : setInterval dans peer.js.
-
-Ajuster le PING_INTERVAL et PONG_TIMEOUT dans le client web pour une meilleure tolérance aux délais réseau.
-
-⚡ Technologies utilisées
-
-Node.js
-
-WebSocket (ws)
-
-Crypto (Ed25519, X25519, AES-256-GCM)
-
-Express pour le serveur HTTP
-
-UUID pour l’identifiant unique des peers
-
-Vanilla JS + HTML/CSS pour le client web
+- Node.js
+- WebSocket (`ws`)
+- Crypto (`Ed25519`, `X25519`, AES-256-GCM)
+- Express pour le serveur HTTP
+- UUID pour l'identifiant unique des peers
+- Vanilla JS + HTML/CSS pour le client web
