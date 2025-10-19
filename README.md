@@ -334,3 +334,40 @@ Le peer va chiffrer le message et l'envoyer aux peers concernés. Note : `to` pe
 
 1. Chaque 5s, le client et les peers envoient un `ping`
 2. Si le `pong` n'est pas reçu sous `PONG_TIMEOUT`, la connexion est considérée fermée
+
+🚀 Lancer le projet
+Voici les étapes complètes pour récupérer, configurer et lancer ton projet de messagerie P2P sécurisé.
+1️⃣ Récupérer le projet depuis GitHub
+bashgit clone <URL_DE_TON_REPO>
+cd <NOM_DU_DOSSIER>
+Remplace <URL_DE_TON_REPO> par l'URL de ton dépôt GitHub et <NOM_DU_DOSSIER> par le nom du dossier créé lors du clone.
+2️⃣ Initialiser le projet Node.js
+bashnpm init -y
+Cette commande crée un fichier package.json avec les paramètres par défaut.
+3️⃣ Vérifier le type de module
+Ouvre package.json et assure-toi que la ligne suivante existe :
+json"type": "module"
+Cela permet d'utiliser les imports ES6 (import … from …) dans tes fichiers .js.
+4️⃣ Installer les dépendances
+bashnpm install ws express uuid
+
+ws → WebSockets pour Node.js
+express → serveur HTTP pour le client web
+uuid → génération d'identifiants uniques pour les peers
+
+5️⃣ Lancer le tracker
+bashnode tracker.js
+Par défaut, le tracker écoute sur le port 8080. Il permet aux peers de se découvrir mutuellement.
+6️⃣ Lancer un peer
+bashnode peer.js [PORT]
+
+[PORT] : port sur lequel le peer écoutera (ex : 9001)
+Si aucun port n'est fourni, le peer utilise 9001 par défaut
+
+Exemple pour lancer deux peers sur la même machine :
+bashnode peer.js 9001
+node peer.js 9002
+Chaque peer se connecte automatiquement au tracker pour s'enregistrer et découvre les autres peers.
+7️⃣ Accéder au client web
+http://localhost:<PORT>
+Remplace <PORT> par le port du peer (ex : 9001 ou 9002). Tu peux envoyer des messages publics (broadcast) ou privés à un peer spécifique.
