@@ -118,3 +118,219 @@ Le projet se compose de trois parties principales :
 - Express pour le serveur HTTP
 - UUID pour l'identifiant unique des peers
 - Vanilla JS + HTML/CSS pour le client web
+
+---
+
+# 📡 Documentation du protocole P2P Secure Messaging
+
+## 1. Vue d'ensemble
+
+Le protocole repose sur trois types de participants :
+
+- **Peer Node** : communication P2P directe avec chiffrement
+- **Tracker** : service central pour découvrir les peers
+- **Client Web** : interface utilisateur, envoie et reçoit des messages via WebSocket
+
+Le protocole utilise WebSocket comme transport et JSON comme format de message.
+
+## 2. Messages du protocole
+
+### 2.1 Messages Peer ↔ Peer
+
+#### 2.1.1 Handshake initial
+
+Envoyé par le peer initiateur pour établir la session :
+
+```json
+{
+  "type": "handshake",
+  "peerId": "uuid-v4",
+  "username": "user123",
+  "publicKey": "<clé publique X25519 base64>",
+  "identityKey": "<clé publique Ed25519 base64>",
+  "signature": "<signature Ed25519 base64 sur publicKey>"
+}
+```
+
+Réponse (handshake_ack) :
+
+```json
+{
+  "type": "handshake_ack",
+  "peerId": "uuid-v4",
+  "username": "user456",
+  "publicKey": "<clé publique X25519 base64>",
+  "identityKey": "<clé publique Ed25519 base64>",
+  "signature": "<signature Ed25519 base64 sur publicKey>"
+}
+```
+
+**Objectif** : authentifier le peer, établir un secret partagé pour la session chiffrée. Les clés de session sont dérivées via Diffie-Hellman X25519 + HKDF.
+
+#### 2.1.2 Messages chiffrés
+
+Format envoyé après handshake :
+
+```json
+{
+  "type": "encrypted",
+  "payload": {
+    "iv": "<base64>",
+    "encrypted": "<base64>",
+    "tag": "<base64>"
+  },
+  "nonce": 0
+}
+```
+
+- **nonce** : compteur pour la ratchet (prévenir le replay)
+- **payload** : AES-256-GCM encrypté du message JSON suivant :
+
+```json
+{
+  "type": "sendMessage",
+  "peerId": "uuid-v4",
+  "data": {
+    "username": "user123",
+    "text": "Bonjour",
+    "to": "user456"
+  },
+  "date": "2025-10-19T12:00:00Z",
+  "id": "uuid-v4"
+}
+```
+
+Note : `to` est facultatif, `null` = broadcast
+
+#### 2.1.3 Rotation de clés
+
+```json
+{
+  "type": "keyRotation",
+  "publicKey": "<nouvelle clé X25519 base64>"
+}
+```
+
+Permet de recalculer sessionKey via Diffie-Hellman. Assure un forward secrecy continu.
+
+#### 2.1.4 Ping / Pong
+
+```json
+{ "type": "ping" }
+{ "type": "pong" }
+```
+
+Vérifie la disponibilité du peer.
+
+### 2.2 Messages Client Web ↔ Peer
+
+#### 2.2.1 Enregistrement
+
+```json
+{ "type": "register" }
+```
+
+Indique au peer que ce WebSocket est un client local.
+
+#### 2.2.2 Envoi de message
+
+```json
+{
+  "type": "sendMessage",
+  "data": {
+    "text": "Bonjour",
+    "to": "user456"
+  }
+}
+```
+
+Le peer va chiffrer le message et l'envoyer aux peers concernés. Note : `to` peut être `null` pour un broadcast
+
+#### 2.2.3 Réception de message
+
+```json
+{
+  "type": "sendMessage",
+  "data": {
+    "username": "user123",
+    "text": "Bonjour",
+    "to": "user456"
+  },
+  "date": "2025-10-19T12:00:00Z",
+  "id": "uuid-v4"
+}
+```
+
+### 2.3 Messages Tracker ↔ Peer
+
+#### 2.3.1 Registration
+
+```json
+{
+  "type": "register",
+  "payload": {
+    "id": "uuid-v4",
+    "username": "user123",
+    "port": 9001
+  }
+}
+```
+
+#### 2.3.2 Désinscription
+
+```json
+{ "type": "unregister" }
+```
+
+#### 2.3.3 Liste des peers
+
+```json
+{
+  "type": "peersUpdate",
+  "payload": [
+    { "id": "uuid-v4", "username": "user456", "address": "127.0.0.1", "port": 9002, "online": true }
+  ]
+}
+```
+
+#### 2.3.4 Ping / Pong
+
+```json
+{ "type": "ping" }
+{ "type": "pong" }
+```
+
+## 3. Workflows
+
+### 3.1 Découverte d'un peer
+
+1. Peer envoie `register` au tracker
+2. Tracker répond avec `peersUpdate`
+3. Peer se connecte aux peers listés et initie le handshake
+
+### 3.2 Handshake P2P sécurisé
+
+1. Peer A envoie `handshake` à Peer B
+2. Peer B vérifie la signature, calcule `sessionKey`
+3. Peer B répond avec `handshake_ack`
+4. Peer A vérifie la signature et dérive sa `sessionKey`
+5. Communication chiffrée peut commencer
+
+### 3.3 Envoi de messages
+
+1. Client Web envoie `sendMessage` au peer
+2. Peer chiffre le message avec AES-256-GCM et envoie aux peers concernés
+3. Si peer destinataire hors-ligne, message est bufferisé
+4. Peer destinataire reçoit `encrypted`, décrypte et transmet au client local si applicable
+
+### 3.4 Rotation de clés
+
+1. Peer génère une nouvelle clé éphémère
+2. Envoie `keyRotation` aux peers connectés
+3. Chaque peer recalcule la `sessionKey` via Diffie-Hellman
+4. Les messages suivants utilisent la nouvelle clé
+
+### 3.5 Ping / Pong et keepalive
+
+1. Chaque 5s, le client et les peers envoient un `ping`
+2. Si le `pong` n'est pas reçu sous `PONG_TIMEOUT`, la connexion est considérée fermée
