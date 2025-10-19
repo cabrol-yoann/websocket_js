@@ -1,0 +1,26 @@
+{
+  "name": "socket",
+  "version": "1.0.0",
+  "description": "Un système de messagerie P2P chiffrée avec WebSocket et chiffrement asymétrique, incluant un tracker central pour découvrir les pairs et un client web léger.",
+  "main": "peer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cabrol-yoann/websocket_js.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/cabrol-yoann/websocket_js/issues"
+  },
+  "homepage": "https://github.com/cabrol-yoann/websocket_js#readme",
+  "dependencies": {
+    "express": "^5.1.0",
+    "uuid": "^13.0.0",
+    "ws": "^8.18.3"
+  }
+}

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Client WebSocket</title>
+<style>
+body { font-family: Arial; margin: 20px; }
+#messages { border:1px solid #ccc; padding:10px; height:300px; overflow-y:auto; margin-bottom:10px; }
+#messages p { margin:5px 0; }
+#form { display:flex; gap:10px; align-items:center; }
+#inputMessage { flex:1; padding:5px; }
+#recipientName { padding:5px; width:150px; }
+</style>
+</head>
+<body>
+<h1>Conversation</h1>
+<div id="messages"></div>
+<form id="form">
+<input type="text" id="recipientName" placeholder="Nom destinataire (vide = tous)" />
+<input type="text" id="inputMessage" placeholder="Écris un message..." required />
+<button type="submit">Envoyer</button>
+</form>
+
+<script type="module">
+import { v4 as uuidv4 } from "https://cdn.jsdelivr.net/npm/uuid@9.0.0/+esm";
+
+const messagesDiv = document.getElementById("messages");
+const form = document.getElementById("form");
+const input = document.getElementById("inputMessage");
+const recipientInput = document.getElementById("recipientName");
+
+let socket;
+let reconnectAttempts = 0;
+const PING_INTERVAL = 5000;
+const PONG_TIMEOUT = 8000;
+let lastPong = Date.now();
+
+function log(msg){ 
+    const p = document.createElement("p"); 
+    p.textContent = `[${new Date().toISOString()}] ${msg}`; 
+    messagesDiv.appendChild(p); 
+    messagesDiv.scrollTop = messagesDiv.scrollHeight; 
+}
+
+function connect(){
+    socket = new WebSocket(`ws://localhost:${window.location.port}`);
+
+    socket.addEventListener("open", () => {
+        log("✅ Connecté");
+        reconnectAttempts = 0;
+        socket.send(JSON.stringify({ id: uuidv4(), type: "register" }));
+    });
+
+    socket.addEventListener("message", e => {
+        const msg = JSON.parse(e.data);
+        switch(msg.type){
+            case "sendMessage":
+                if(msg.data.to)
+                  log(`${msg.data.username}(Private): ${msg.data.text}`);
+                else
+                  log(`${msg.data.username}: ${msg.data.text}`);
+                break;
+            case "info":
+                log(`ℹ️ ${msg.payload}`);
+                break;
+            case "error":
+                log(`❌ ${msg.payload}`);
+                break;
+            case "ping":
+                socket.send(JSON.stringify({ id: uuidv4(), type: "pong" }));
+                break;
+            case "pong":
+                lastPong = Date.now();
+                break;
+        }
+    });
+
+    socket.addEventListener("close", () => {
+        log("❌ Déconnecté");
+        scheduleReconnect();
+    });
+
+    socket.addEventListener("error", e => {
+        console.error("WS error", e);
+        socket.close();
+    });
+}
+
+function scheduleReconnect(){
+    reconnectAttempts++;
+    const delay = Math.min(1000 * 2 ** reconnectAttempts, 30000);
+    log(`🔄 Reconnexion dans ${delay/1000}s...`);
+    setTimeout(connect, delay);
+}
+
+// Ping/Pong interval
+setInterval(() => {
+    if(socket && socket.readyState === 1) socket.send(JSON.stringify({ id: uuidv4(), type: "ping" }));
+    if(Date.now() - lastPong > PONG_TIMEOUT){
+        log("⚠️ Timeout pong");
+        socket.close();
+    }
+}, PING_INTERVAL);
+
+// Gestion de l'envoi de messages
+form.addEventListener("submit", e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    const toName = recipientInput.value.trim();
+
+    if(text && socket.readyState === 1){ 
+        socket.send(JSON.stringify({ 
+            id: uuidv4(),
+            type: "sendMessage",
+            ts: Date.now(),
+            data: { text, to: toName || null }
+        }));
+
+        if(toName){
+            log(`Moi (à ${toName}): ${text}`);
+        } else {
+            log(`Moi (à tous): ${text}`);
+        }
+
+        input.value = "";
+    }
+});
+
+connect();
+</script>
+</body>
+</html>
